@@ -7937,7 +7937,7 @@ static void pool_resus(struct pool *pool)
 		applog(LOG_INFO, "Pool %d %s alive", pool->pool_no, pool->rpc_url);
 }
 
-static struct work *hash_pop(void)
+static struct work *hash_pop(const struct cgpu_info *cgpu)
 {
 	struct work *work = NULL, *tmp;
 	int hc;
@@ -7962,7 +7962,7 @@ retry:
 		ts = (struct timespec){ .tv_sec = opt_log_interval, };
 		if (ETIMEDOUT == pthread_cond_timedwait(&getq->cond, stgd_lock, &ts))
 		{
-			run_cmd(cmd_idle);
+			run_cmd_expand(cmd_idle, cgpu);
 			pthread_cond_wait(&getq->cond, stgd_lock);
 		}
 	}
@@ -8236,7 +8236,7 @@ struct work *get_work(struct thr_info *thr)
 
 	applog(LOG_DEBUG, "%"PRIpreprv": Popping work from get queue to get work", cgpu->proc_repr);
 	while (!work) {
-		work = hash_pop();
+		work = hash_pop(cgpu);
 		if (stale_work(work, false)) {
 			staged_full = false;  // It wasn't really full, since it was stale :(
 			discard_work(work);
@@ -9198,7 +9198,7 @@ void bfg_watchdog(struct cgpu_info * const cgpu, struct timeval * const tvp_now)
 				*denable = DEV_RECOVER;
 
 				dev_error(cgpu, REASON_DEV_THERMAL_CUTOFF);
-				run_cmd(cmd_idle);
+				run_cmd_expand(cmd_idle, cgpu);
 			}
 
 			if (thr->getwork) {
@@ -9235,7 +9235,7 @@ void bfg_watchdog(struct cgpu_info * const cgpu, struct timeval * const tvp_now)
 				cgtime(&thr->sick);
 
 				dev_error(cgpu, REASON_DEV_SICK_IDLE_60);
-				run_cmd(cmd_sick);
+				run_cmd_expand(cmd_sick, cgpu);
 				
 #ifdef HAVE_ADL
 				if (adl_active && cgpu->has_adl && gpu_activity(gpu) > 50) {
@@ -9253,7 +9253,7 @@ void bfg_watchdog(struct cgpu_info * const cgpu, struct timeval * const tvp_now)
 				cgtime(&thr->sick);
 
 				dev_error(cgpu, REASON_DEV_DEAD_IDLE_600);
-				run_cmd(cmd_dead);
+				run_cmd_expand(cmd_dead, cgpu);
 			} else if (tvp_now->tv_sec - thr->sick.tv_sec > 60 &&
 				   (cgpu->status == LIFE_SICK || cgpu->status == LIFE_DEAD)) {
 				/* Attempt to restart a GPU that's sick or dead once every minute */

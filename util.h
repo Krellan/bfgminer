@@ -440,6 +440,7 @@ void maybe_strdup_if_null(const char **p, const char *s)
 
 
 extern void run_cmd(const char *cmd);
+extern void run_cmd_expand(const char *cmd, const struct cgpu_info *dev);
 
 
 #endif /* __UTIL_H__ */

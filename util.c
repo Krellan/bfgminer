@@ -2722,20 +2722,117 @@ void _bytes_alloc_failure(size_t sz)
 }
 
 
-void *cmd_thread(void *cmdp)
+static void *cmd_thread(void *cmdp)
 {
 	const char *cmd = cmdp;
 	applog(LOG_DEBUG, "Executing command: %s", cmd);
 	int rc = system(cmd);
 	if (rc)
 		applog(LOG_WARNING, "Command returned %d exit code: %s", rc, cmd);
+	
+	// Clean up string passed in by caller
+	free(cmdp);
+	
 	return NULL;
+}
+
+static void run_cmd_free(const char *cmdfree)
+{
+	pthread_t pth;
+	pthread_create(&pth, NULL, cmd_thread, (void*)cmdfree);
 }
 
 void run_cmd(const char *cmd)
 {
 	if (!cmd)
 		return;
-	pthread_t pth;
-	pthread_create(&pth, NULL, cmd_thread, (void*)cmd);
+	
+	char *cmdlocal = strdup(cmd);
+	
+	// Transfer ownership of this string, this function will free it after command execution completes
+	run_cmd_free(cmdlocal);
+}
+
+void run_cmd_expand(const char *cmd, const struct cgpu_info *dev)
+{
+        if (!cmd)
+                return;
+	if (!dev)
+		return;
+
+	char tmpbuf[PATH_MAX];
+	char *newbuf;
+	const char *cmdptr;
+	
+	unsigned int tmpui;
+	char cmdch;
+	char nextch;
+	
+	newbuf = strdup("");
+	
+	// Iterate over each character in the original string
+	for (cmdptr = cmd; (cmdch = *cmdptr) != '\0'; cmdptr ++)
+	{
+		if (cmdch != '%')
+		{
+			nextch = '\0';
+			
+			// Copy this character unchanged
+			tmpbuf[0] = cmdch;
+			tmpbuf[1] = '\0';
+		}
+		else
+		{
+			// Advance beyond this escape
+			nextch = *(cmdptr + 1);
+			if (nextch != '\0')
+			{
+				cmdptr ++;
+			}
+			
+			// Unrecognized escapes print literally as themselves
+			tmpbuf[0] = nextch;
+			tmpbuf[1] = '\0';
+		}
+		
+		// Expand each escape that is recognized
+		switch(nextch)
+		{
+			case 't':	// temperature
+				sprintf(tmpbuf, "%4.1f", dev->temp);
+				break;
+			
+			case 'e':	// dev_enable enum, DEV_*
+				tmpui = (unsigned int)(dev->deven);
+				sprintf(tmpbuf, "%u", tmpui);
+				break;
+			
+			case 'l':	// life status, alive enum, LIFE_*
+				tmpui = (unsigned int)(dev->status);
+				sprintf(tmpbuf, "%u", tmpui);
+				break;
+			
+			case 'r':	// dev_reason enum, REASON_*
+				tmpui = (unsigned int)(dev->device_not_well_reason);
+				sprintf(tmpbuf, "%u", tmpui);
+				break;
+			
+			case 'f':	// system device path, driver-specific
+				sprintf(tmpbuf, "%s", dev->device_path);
+				break;
+			
+			case 'd':	// device name, without spaces
+				sprintf(tmpbuf, "%s", dev->dev_repr_ns);
+				break;
+			
+			case 'p':	// processor name, without spaces
+				sprintf(tmpbuf, "%s", dev->proc_repr_ns);
+				break;
+		}
+		
+		newbuf = realloc_strcat(newbuf, tmpbuf);
+	}
+	
+	// Transfer ownership of this string, this function will free it after command execution completes
+	run_cmd_free(newbuf);
 }
