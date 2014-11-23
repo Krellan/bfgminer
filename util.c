@@ -2194,6 +2194,7 @@ struct bfg_strtobool_keyword {
 bool bfg_strtobool(const char * const s, char ** const endptr, __maybe_unused const int opts)
 {
 	struct bfg_strtobool_keyword keywords[] = {
+		{false, "disable"},
 		{false, "false"},
 		{false, "never"},
 		{false, "none"},
@@ -2201,6 +2202,7 @@ bool bfg_strtobool(const char * const s, char ** const endptr, __maybe_unused co
 		{false, "no"},
 		{false, "0"},
 		
+		{true , "enable"},
 		{true , "always"},
 		{true , "true"},
 		{true , "yes"},
@@ -2220,7 +2222,8 @@ bool bfg_strtobool(const char * const s, char ** const endptr, __maybe_unused co
 	}
 	
 	char *lend;
-	strtol(s, &lend, 0);
+	if (strtol(s, &lend, 0))
+		; // Shut up compiler warning
 	if (lend > s)
 	{
 		if (endptr)
