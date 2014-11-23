@@ -373,6 +373,9 @@ struct mining_algorithm *mining_algorithms;
 struct mining_goal_info *mining_goals;
 int active_goals = 1;
 
+#ifndef _Static_assert
+#define _Static_assert(X, Y) do { assert(X); } while(0)
+#endif
 
 int swork_id;
 
